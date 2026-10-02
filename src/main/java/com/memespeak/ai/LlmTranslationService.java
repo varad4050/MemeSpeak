@@ -7,11 +7,21 @@ import com.memespeak.exception.LlmException;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.List;
+import java.util.Map;
 
 /**
- * Calls the configured LLM (via Spring AI) and parses the structured response.
+ * Calls the configured LLM and parses the structured response.
+ *
+ * <p>Uses a direct REST call to Google's Gemini OpenAI-compatible endpoint
+ * instead of Spring AI's ChatClient, because Spring AI's OpenAiApi hardcodes
+ * the path as "/v1/chat/completions" (absolute), which breaks Google's
+ * "/v1beta/openai/chat/completions" URL during URI resolution.
  *
  * <p>Responsibilities of this class:
  * <ul>
@@ -23,10 +33,6 @@ import org.springframework.stereotype.Service;
  *
  * <p>Responsibilities NOT in this class (handled upstream by the pipeline):
  * authentication, rate limiting, caching, abuse detection, PII protection.
- *
- * <p>The system prompt establishes the LLM's narrow role and instructs it
- * to respond only in the required JSON format. However, the backend validates
- * the structure regardless — we never trust LLM output blindly.
  */
 @Slf4j
 @Service
@@ -56,14 +62,31 @@ public class LlmTranslationService {
             8. Interpret "cooked" differently in "bro is cooked" vs "the chicken is cooked".
             """;
 
-    private final ChatClient chatClient;
+    private final RestClient restClient;
+    private final String model;
     private final ObjectMapper objectMapper;
     private final Counter llmCallCounter;
 
-    public LlmTranslationService(ChatClient.Builder chatClientBuilder,
-                                  ObjectMapper objectMapper,
-                                  MeterRegistry meterRegistry) {
-        this.chatClient = chatClientBuilder.build();
+    public LlmTranslationService(
+            @Value("${spring.ai.openai.api-key}") String apiKey,
+            @Value("${spring.ai.openai.base-url:https://generativelanguage.googleapis.com/v1beta/openai/}") String baseUrl,
+            @Value("${spring.ai.openai.chat.options.model:gemini-1.5-flash}") String model,
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry) {
+
+        // Ensure base URL ends with a slash
+        String normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+        // Build the full chat completions URL directly — no ambiguous URI resolution
+        String chatCompletionsUrl = normalizedBaseUrl + "chat/completions";
+
+        log.info("LLM endpoint configured: url={}, model={}", chatCompletionsUrl, model);
+
+        this.restClient = RestClient.builder()
+                .baseUrl(chatCompletionsUrl)
+                .defaultHeader("Authorization", "Bearer " + apiKey)
+                .defaultHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                .build();
+        this.model = model;
         this.objectMapper = objectMapper;
         this.llmCallCounter = Counter.builder("memespeak.llm.calls")
                 .description("Total LLM API calls made")
@@ -83,11 +106,38 @@ public class LlmTranslationService {
 
         String rawResponse;
         try {
-            rawResponse = chatClient.prompt()
-                    .system(SYSTEM_PROMPT)
-                    .user(sanitizedText)
-                    .call()
-                    .content();
+            // Build the OpenAI-compatible request body
+            Map<String, Object> requestBody = Map.of(
+                    "model", model,
+                    "temperature", 0.2,
+                    "max_tokens", 512,
+                    "messages", List.of(
+                            Map.of("role", "system", "content", SYSTEM_PROMPT),
+                            Map.of("role", "user", "content", sanitizedText)
+                    )
+            );
+
+            String responseJson = restClient.post()
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+
+            // Parse the OpenAI-format response to extract the assistant's message
+            JsonNode responseRoot = objectMapper.readTree(responseJson);
+            rawResponse = responseRoot
+                    .path("choices").path(0)
+                    .path("message").path("content")
+                    .asText("");
+
+            if (rawResponse.isBlank()) {
+                log.error("LLM returned empty content. Full response: {}", responseJson);
+                throw new LlmException("LLM returned empty content");
+            }
+
+            log.debug("LLM raw content: {}", rawResponse);
+
+        } catch (LlmException e) {
+            throw e;
         } catch (Exception e) {
             log.error("LLM API call failed: {}", e.getMessage());
             throw new LlmException("LLM API call failed", e);
