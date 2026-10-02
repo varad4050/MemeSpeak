@@ -1,0 +1,100 @@
+# ==============================================================================
+# docker-compose.yml — MemeSpeak local development environment
+#
+# Usage:
+#   1. cp .env.example .env
+#   2. Fill in .env with your real values
+#   3. docker compose up --build
+#
+# Services:
+#   postgres  — PostgreSQL 16
+#   redis     — Redis 7
+#   backend   — Spring Boot application
+#
+# NEVER commit .env — it is in .gitignore
+# ==============================================================================
+
+services:
+
+  # ----------------------------------------------------------------------------
+  # PostgreSQL
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: memespeak
+      POSTGRES_USER: ${DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME} -d memespeak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ----------------------------------------------------------------------------
+  # Redis
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ----------------------------------------------------------------------------
+  # MemeSpeak Backend
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Database
+      DATABASE_URL: jdbc:postgresql://postgres:5432/memespeak
+      DATABASE_USERNAME: ${DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # LLM (defaults to Gemini Flash)
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
+      LLM_MODEL: ${LLM_MODEL:-gemini-1.5-flash}
+      # Google OAuth2
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      # App tuning (optional)
+      CACHE_TTL_HOURS: ${CACHE_TTL_HOURS:-24}
+      RATE_LIMIT_RPM: ${RATE_LIMIT_RPM:-30}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# ------------------------------------------------------------------------------
+# Volumes
+# ------------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local

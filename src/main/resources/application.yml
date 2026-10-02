@@ -1,0 +1,120 @@
+# ==============================================================================
+# MemeSpeak — application.yml  (complete configuration)
+#
+# All sensitive values are read from environment variables.
+# Never hardcode secrets here.
+# Defaults are provided for local development only.
+# ==============================================================================
+
+spring:
+  application:
+    name: memespeak
+
+  # ----------------------------------------------------------------------------
+  # Database
+  # ----------------------------------------------------------------------------
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/memespeak}
+    username: ${DATABASE_USERNAME:memespeak}
+    password: ${DATABASE_PASSWORD:changeme}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  # ----------------------------------------------------------------------------
+  # Redis
+  # ----------------------------------------------------------------------------
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+
+  # ----------------------------------------------------------------------------
+  # Spring Security — OAuth2 Resource Server (validate Google ID tokens)
+  # The client (browser / Postman) obtains a Google ID Token and sends it as:
+  #   Authorization: Bearer <google-id-token>
+  # Spring Security validates the JWT signature using Google's JWKS.
+  # ----------------------------------------------------------------------------
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://accounts.google.com
+          jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+
+  # ----------------------------------------------------------------------------
+  # Spring AI — OpenAI-compatible client
+  # Preconfigured for Google Gemini Flash via OpenAI-compatible endpoint.
+  # (Also supports OpenAI or any OpenAI-compatible provider)
+  # ----------------------------------------------------------------------------
+  ai:
+    openai:
+      api-key: ${LLM_API_KEY:placeholder}
+      base-url: ${LLM_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai/}
+      chat:
+        options:
+          model: ${LLM_MODEL:gemini-1.5-flash}
+          temperature: 0.2
+          max-tokens: 512
+
+# ------------------------------------------------------------------------------
+# Server
+# ------------------------------------------------------------------------------
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: never  # Never leak internal error messages to clients
+    include-stacktrace: never
+
+# ------------------------------------------------------------------------------
+# Actuator — observability endpoints
+# ------------------------------------------------------------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: memespeak
+  info:
+    env:
+      enabled: true
+
+# ------------------------------------------------------------------------------
+# Application info (appears at /actuator/info)
+# ------------------------------------------------------------------------------
+info:
+  app:
+    name: MemeSpeak
+    description: AI-powered internet slang translator
+    version: 0.0.1-SNAPSHOT
+
+# ------------------------------------------------------------------------------
+# MemeSpeak application properties
+# ------------------------------------------------------------------------------
+memespeak:
+  cache:
+    ttl-hours: ${CACHE_TTL_HOURS:24}
+    key-prefix: "meme:translation:v1:"
+    lock-prefix: "meme:lock:v1:"
+    lock-timeout-seconds: 30
+    poll-interval-ms: 300
+    poll-max-attempts: 15
+  rate-limit:
+    requests-per-minute: ${RATE_LIMIT_RPM:30}
+    key-prefix: "meme:rate:"

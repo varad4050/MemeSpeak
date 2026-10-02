@@ -1,0 +1,79 @@
+# ==============================================================================
+# Profanity / Abuse Dictionary
+#
+# Each line is a NORMALIZED word (lowercase, no punctuation, leet-speak decoded).
+# These are matched against the TextNormalizer.normalizeForSafety() output.
+#
+# Rules:
+#   - One word/phrase per line
+#   - Lowercase only
+#   - No special characters
+#   - Lines starting with # are comments
+#   - Blank lines are ignored
+#
+# To expand: add new words here. No code changes required.
+# ==============================================================================
+
+# Core profanity
+fuck
+fucker
+fucking
+fucked
+fucks
+shit
+shitting
+shitty
+cunt
+cunts
+bitch
+bitches
+bitching
+ass
+asshole
+assholes
+bastard
+bastards
+damn
+piss
+pissed
+cock
+cocks
+dick
+dicks
+pussy
+pussies
+whore
+whores
+slut
+sluts
+
+# Sexual profanity
+rape
+raped
+raping
+
+# Hate slurs (normalized forms — targeting race, religion, orientation)
+nigga
+nigger
+kike
+spic
+chink
+gook
+wetback
+faggot
+fag
+dyke
+
+# Threatening language
+kill
+murder
+die
+stab
+shoot
+
+# Note: "kill" is intentionally included because in context-free profanity checking
+# it appears in many threatening/abusive phrases. The AbuseDetectionService
+# uses whole-word matching on the normalized text to reduce false positives
+# on phrases like "killing it" (slang for doing well).
+# False-positive reduction for common slang is handled by the context-aware
+# semantic layer (future phase). For V1, err on the side of caution.

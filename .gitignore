@@ -1,0 +1,26 @@
+# Compiled output
+target/
+*.class
+*.jar
+*.war
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.DS_Store
+
+# Secrets — NEVER commit these
+.env
+*.env
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Spring Boot DevTools restart trigger
+.spring-boot-devtools.properties

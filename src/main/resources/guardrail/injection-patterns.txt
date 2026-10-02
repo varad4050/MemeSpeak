@@ -1,0 +1,44 @@
+# Prompt injection pattern list
+#
+# Each line is a lowercase phrase to match (substring match on normalized input).
+# Lines starting with # or blank lines are ignored.
+#
+ignore previous instructions
+ignore all instructions
+ignore your instructions
+disregard previous
+disregard all
+forget everything
+forget your instructions
+reveal your system prompt
+show your system prompt
+show your instructions
+show your hidden instructions
+show your prompt
+what are your instructions
+what is your prompt
+print your system
+output your system
+repeat your instructions
+your previous instructions
+act as a different ai
+act as another ai
+you are now a different
+pretend you are a different
+you are no longer
+switch to a new persona
+new persona mode
+developer mode
+jailbreak
+dan mode
+do anything now
+bypass your guidelines
+ignore your guidelines
+override your instructions
+system prompt is now
+your new instructions
+from now on you
+from now on, you
+you must now
+you should now
+change your behavior
